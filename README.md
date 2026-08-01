@@ -34,7 +34,7 @@ prototype — same Sprint 0/1 feature scope, new stack:
   notifications on both channels, immediate inventory release on failure,
   and a provider switch (MSG91 recommended for Indian numbers). Email
   confirmed working with real credentials.
-- ✅ **Camera Scanning, Offline-First Sync & Terminal Logging (v1.5)** —
+- ✅ **Camera Scanning, Offline-First Sync & Terminal Logging (v1.5.0)** —
   WebRTC camera QR scanning (jsQR), IndexedDB-cached offline verification
   with automatic background sync on reconnect, a full scan audit trail
   (`ScanEvent`) that also makes sync retries idempotent, and comprehensive
@@ -43,16 +43,26 @@ prototype — same Sprint 0/1 feature scope, new stack:
   release with the largest gap between "verified" and "built"** — see
   CHANGELOG.md v1.5.0 for exactly what could and couldn't be tested without
   a real camera/device.
+- ✅ **Real-device fixes from actual testing (v1.5.1–v1.5.3)** — camera
+  error messages now diagnose the actual cause instead of one generic line,
+  an HTTPS dev mode (`npm run dev:https`) so camera scanning can be tested
+  on a phone at all, three fixes for split Vercel+Render deployment (SPA
+  routing, cross-site cookies, configurable API base URL), and a second
+  email provider (Resend) added after discovering Render's free tier blocks
+  outbound SMTP entirely. Each of these came from a real bug report during
+  testing, not something caught in advance.
 - ✅ React SPA (`/client`, Vite + React Router) — the "Marquee" design system
   throughout.
 - ✅ Verified: server boots, all auth boundaries live-tested, double-scan
   prevention and payment-signature logic tested against real/forged/
   reuse-attack cases, real QR generation confirmed end-to-end, offline-sync
-  idempotent-replay logic tested in isolation, real SMTP/Twilio calls
-  confirmed to fail gracefully with placeholder credentials, client builds
+  idempotent-replay logic tested in isolation, real SMTP/Twilio/Resend calls
+  confirmed to fail gracefully with placeholder credentials, `VITE_API_URL`
+  confirmed genuinely baked into the production build, client builds
   cleanly. Camera access and true offline device behavior are **not**
-  verified — no camera or physical device available in the environment this
-  was built in.
+  verified end-to-end — no camera or physical device available in the
+  environment this was built in; both are working per direct user testing
+  as of v1.5.1+, with email confirmed working in production as of v1.5.3.
 
 ## What's not built yet (see CHANGELOG.md for the version-by-version plan)
 
@@ -239,26 +249,45 @@ Nothing else in the codebase needs to change — `server/src/utils/payment.js` i
 
 ## Going live with real notifications
 
-Same pattern, different provider. Email is Nodemailer (SMTP); SMS supports
-**two** providers via a switch — MSG91 (recommended for Indian numbers) or
-Twilio. Both currently on placeholder credentials.
+Same pattern, different providers. Email supports **two** providers via a
+switch — SMTP (default) or Resend; SMS supports **two** — MSG91
+(recommended for Indian numbers) or Twilio. All currently on placeholder
+credentials, and SMS can be left off entirely at zero cost (see below).
 
-**Email — in `server/.env`:**
+**Email — pick one provider:**
 
 ```env
+EMAIL_PROVIDER="smtp"   # or "resend"
+
+# If smtp:
 SMTP_HOST="your-smtp-host"
 SMTP_PORT=587
 SMTP_USER="your-smtp-username"
 SMTP_PASSWORD="your-smtp-password"
 MAIL_FROM_EMAIL="tickets@yourdomain.com"
 MAIL_FROM_NAME="Your Event Name"
-```
-Works with any SMTP provider — Gmail SMTP for quick testing, SendGrid/AWS SES/Mailgun/Postmark for production.
 
-**SMS — pick one provider:**
+# If resend:
+RESEND_API_KEY="your-real-key"
+```
+
+- **SMTP** (default): works with any provider — Gmail SMTP for quick local testing, SendGrid/AWS SES/Mailgun/Postmark for production. **Known issue**: Render's free tier (and some other hosts) block outbound SMTP ports 25/465/587 entirely as of September 2025 — if email worked locally but times out once deployed, this is almost certainly why. See CHANGELOG.md v1.5.3.
+- **Resend** ([resend.com/api-keys](https://resend.com/api-keys)): sends over HTTPS instead of SMTP ports, so host-level SMTP blocking doesn't affect it — the fix for the Render issue above. Free tier: 3,000 emails/month, 100/day. For quick testing with zero domain setup, leave `MAIL_FROM_EMAIL` unset and it sends from Resend's shared `onboarding@resend.dev` address. **Not tested against a live account** (see CHANGELOG.md v1.5.3 for a fairly candid account of almost reporting a false positive here) — verify your first real send.
+
+Switching providers is one env var; nothing else changes, and QR codes are
+still delivered either way (inline in the email body via SMTP, as regular
+attachments via Resend — see CHANGELOG.md v1.5.3 for why that difference
+exists).
+
+**SMS — pick one provider, or skip it entirely:**
+
+**Want to skip SMS for now (no cost, nothing to sign up for)?** Just leave
+`SMS_PROVIDER` empty/unset. It automatically falls back to logging what
+would have been sent instead of calling any real API — no code changes
+needed, and email is unaffected.
 
 ```env
-SMS_PROVIDER="msg91"   # or "twilio"
+SMS_PROVIDER="msg91"   # or "twilio", or leave empty to skip SMS entirely
 
 # If msg91:
 MSG91_AUTH_KEY="your-auth-key"

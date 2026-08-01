@@ -1,6 +1,61 @@
 # Changelog
 
-## v1.5.2 — Split Deployment Fixes: Vercel + Render (current)
+## v1.5.3 — Email Delivery Fix: Render's SMTP Port Block (current)
+
+**Real bug report from production**: ticket emails were confirmed working
+locally and in an earlier deployment, then started failing with
+`Connection timeout` once running on Render. Confirmed via search: Render's
+free-tier web services have blocked outbound traffic on SMTP ports 25, 465,
+and 587 since September 26, 2025 — a platform policy change, not something
+wrong with the SMTP credentials or code. Every SMTP send from a free Render
+instance will time out regardless of how correctly it's configured.
+
+**Fixed:** added **Resend** as a second email provider — it sends over
+HTTPS, not SMTP ports, so Render's block doesn't affect it. Genuinely free
+tier (3,000 emails/month, 100/day). Switch via one env var:
+
+```env
+EMAIL_PROVIDER="resend"
+RESEND_API_KEY="your-real-key"
+```
+
+SMTP remains the default (`EMAIL_PROVIDER=smtp` if unset) so existing setups
+— including a working local Gmail SMTP config — are completely unaffected;
+this is purely additive.
+
+**One deliberate simplification, not an oversight:** the SMTP path embeds
+QR codes directly in the email body (inline, via `cid` references). The
+Resend path attaches them as regular (downloadable, non-inline) attachments
+instead — done to avoid depending on inline-image behavior I couldn't
+verify against a live Resend account. The email text adjusts its wording
+accordingly ("attached to this email" vs. "shown below") so it's not a
+silently broken UX either way.
+
+**Verified — same rigor as always, and same honest miss-then-catch as the
+MSG91 integration:**
+- Confirmed the Render SMTP block is real via a live web search (Render's
+  own changelog, dated Sept 16 2025), not assumed.
+- Confirmed the module loads and all exports are intact.
+- Confirmed the fully-unconfigured mock fallback (what you're currently
+  relying on for SMS) has zero regression.
+- Confirmed `EMAIL_PROVIDER` left unset still takes the SMTP path (matches
+  every existing deployment) — verified indirectly: attempting a real SMTP
+  connection with fake credentials hangs trying to connect rather than
+  instantly logging a mock line, which is the correct behavior.
+- **Almost mis-reported a false positive again**: testing the Resend path
+  with a placeholder key returned what looked like a real Resend error
+  message ("Internal server error..."). Checked the response headers before
+  writing that down and found `x-deny-reason: host_not_allowed` — same
+  sandbox network restriction that caused the MSG91 false-positive earlier.
+  That response was my own sandbox blocking the request, not Resend. What's
+  actually confirmed: the error-handling path doesn't crash and produces a
+  clean `FAILED` record either way. What's **not** confirmed: Resend's real
+  API response shape, or that a real send succeeds. Verify your first real
+  Resend send.
+
+---
+
+## v1.5.2 — Split Deployment Fixes: Vercel + Render
 
 **Real bug report from an actual deployment**: frontend on Vercel, backend
 on Render. Two symptoms reported: direct navigation to `/organizer/login`
