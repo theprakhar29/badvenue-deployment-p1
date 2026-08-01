@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-paper text-ink font-body antialiased;
+  }
+  ::selection {
+    @apply bg-amber-500/30;
+  }
+  :focus-visible {
+    outline: 2px solid theme("colors.amber.500");
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .stub-divider {
+    position: relative;
+    height: 1px;
+    background-image: repeating-linear-gradient(
+      to right,
+      theme("colors.navy.950" / 25%) 0,
+      theme("colors.navy.950" / 25%) 6px,
+      transparent 6px,
+      transparent 14px
+    );
+  }
+  .stub-divider::before,
+  .stub-divider::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    background: theme("colors.paper");
+    border-radius: 9999px;
+    transform: translateY(-50%);
+  }
+  .stub-divider::before {
+    left: -8px;
+  }
+  .stub-divider::after {
+    right: -8px;
+  }
+}
